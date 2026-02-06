@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Free Traffic</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* এডমিন প্যানেলের জন্য কিছু স্পেশাল স্টাইল */
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .admin-table th, .admin-table td {
+            border: 1px solid #333;
+            padding: 8px;
+            text-align: left;
+            color: #ddd;
+        }
+        .admin-table th { background-color: #111; color: #00d4ff; }
+        .action-btn {
+            padding: 5px 10px;
+            margin: 2px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        .btn-edit { background: #d000ff; color: white; }
+        .btn-delete { background: red; color: white; }
+        .tab-btn {
+            background: #111;
+            border: 1px solid #00d4ff;
+            color: white;
+            padding: 10px;
+            cursor: pointer;
+            width: 30%;
+        }
+        .active-tab { background: #00d4ff; color: black; font-weight: bold; }
+        
+        /* Select Box Style for Admin */
+        select.input-full {
+            background: #111;
+            border: 1px solid #00d4ff;
+            color: white;
+            padding: 10px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2 class="neon-text" style="color: red;">ADMIN CONTROL PANEL</h2>
+        
+        <div id="admin-login">
+            <div class="input-group">
+                <i class="fas fa-user-shield"></i>
+                <input type="email" id="adminEmail" value="shakil56p@gmail.com" readonly style="color: grey;">
+            </div>
+            <div class="input-group">
+                <i class="fas fa-key"></i>
+                <input type="password" id="adminPass" placeholder="Admin Password">
+            </div>
+            <button onclick="adminLogin()" class="btn-primary" style="background: red;">ADMIN LOGIN</button>
+        </div>
+
+        <div id="admin-dashboard" class="hidden">
+            <button onclick="logout()" class="btn-primary" style="background: #333; margin-bottom: 20px;">Logout</button>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <button onclick="switchTab('users')" class="tab-btn active-tab">Users Control</button>
+                <button onclick="switchTab('ads')" class="tab-btn">Manage Ads</button>
+                <button onclick="switchTab('post')" class="tab-btn">Post Free Ad</button>
+            </div>
+
+            <div id="tab-users">
+                <h3 class="neon-text">সকল ইউজার লিস্ট</h3>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Balance</th>
+                                <th>IP</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-ads" class="hidden">
+                <h3 class="neon-text">সকল বিজ্ঞাপন</h3>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Owner</th>
+                                <th>Category</th> <th>Rem. Views</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adsTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-post" class="hidden">
+                <h3>ফ্রী বিজ্ঞাপন দিন (অ্যাডমিন)</h3>
+                
+                <label style="color: #aaa; font-size: 12px;">URL / Link:</label>
+                <input type="text" id="aUrl" placeholder="https://example.com" class="input-full">
+                
+                <label style="color: #aaa; font-size: 12px;">Time (Seconds):</label>
+                <input type="number" id="aTime" placeholder="Duration (e.g. 20)" class="input-full">
+                
+                <label style="color: #aaa; font-size: 12px;">Target Views:</label>
+                <input type="number" id="aTarget" placeholder="Target Views (e.g. 1000)" class="input-full">
+                
+                <label style="color: #aaa; font-size: 12px;">Category:</label>
+                <select id="aType" class="input-full">
+                    <option value="Direct Link">Direct Link</option>
+                    <option value="Website">Website</option>
+                    <option value="Ad Script">Ad Script</option>
+                </select>
+
+                <button onclick="postAdminAd()" class="btn-primary" style="background: green;">POST NOW</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <script>
+        // আপনার দেওয়া কনফিগ
+        const firebaseConfig = {
+            apiKey: "AIzaSyDjQ0LB1J1MeAFyPOdA9sCkYiPYaT4rXEg",
+            authDomain: "free-traffic-b363b.firebaseapp.com",
+            databaseURL: "https://free-traffic-b363b-default-rtdb.firebaseio.com",
+            projectId: "free-traffic-b363b",
+            storageBucket: "free-traffic-b363b.firebasestorage.app",
+            messagingSenderId: "800542824235",
+            appId: "1:800542824235:web:8283a6df589af8651cd76e",
+            measurementId: "G-LMVTZKVNJZ"
+        };
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        // --- ADMIN LOGIN SYSTEM ---
+        function adminLogin() {
+            const email = document.getElementById('adminEmail').value;
+            const pass = document.getElementById('adminPass').value;
+
+            if(email !== "shakil56p@gmail.com") {
+                Swal.fire('Access Denied', 'শুধুমাত্র মেইন এডমিন লগইন করতে পারবে!', 'error');
+                return;
+            }
+
+            auth.signInWithEmailAndPassword(email, pass)
+                .then((userCredential) => {
+                    if(userCredential.user.email === "shakil56p@gmail.com") {
+                        showDashboard();
+                        Swal.fire('Welcome Admin', 'লগইন সফল হয়েছে', 'success');
+                    } else {
+                        auth.signOut();
+                        Swal.fire('Error', 'You are not the Admin!', 'error');
+                    }
+                })
+                .catch((error) => {
+                    Swal.fire('Error', error.message, 'error');
+                });
+        }
+
+        function showDashboard() {
+            document.getElementById('admin-login').style.display = 'none';
+            document.getElementById('admin-dashboard').classList.remove('hidden');
+            loadAllData();
+        }
+
+        function logout() {
+            auth.signOut().then(() => {
+                location.reload();
+            });
+        }
+
+        function switchTab(tabName) {
+            document.getElementById('tab-users').classList.add('hidden');
+            document.getElementById('tab-ads').classList.add('hidden');
+            document.getElementById('tab-post').classList.add('hidden');
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+        }
+
+        // --- LOAD DATA ---
+        function loadAllData() {
+            // Users Load
+            db.ref('users').on('value', snap => {
+                let html = '';
+                snap.forEach(child => {
+                    const u = child.val();
+                    const uid = child.key;
+                    html += `
+                        <tr>
+                            <td>${u.email}</td>
+                            <td>${u.balance.toFixed(2)}</td>
+                            <td>${u.ip || 'N/A'}</td>
+                            <td>
+                                <button onclick="editBalance('${uid}', ${u.balance})" class="action-btn btn-edit">Edit</button>
+                                <button onclick="banUser('${uid}')" class="action-btn btn-delete">Ban</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                document.getElementById('userTableBody').innerHTML = html;
+            });
+
+            // Ads Load
+            db.ref('tasks').on('value', snap => {
+                let html = '';
+                snap.forEach(child => {
+                    const task = child.val();
+                    const taskId = child.key;
+                    html += `
+                        <tr>
+                            <td>${task.owner === 'ADMIN' ? 'Admin' : 'User'}</td>
+                            <td>${task.type || 'Direct'}</td>
+                            <td>${task.remaining}</td>
+                            <td>
+                                <button onclick="deleteTask('${taskId}')" class="action-btn btn-delete">Del</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                document.getElementById('adsTableBody').innerHTML = html;
+            });
+        }
+
+        // --- EDIT USER BALANCE ---
+        function editBalance(uid, currentBal) {
+            Swal.fire({
+                title: 'নতুন ব্যালেন্স দিন',
+                input: 'number',
+                inputValue: currentBal,
+                showCancelButton: true,
+                confirmButtonText: 'আপডেট করুন'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const newBal = parseFloat(result.value);
+                    db.ref('users/' + uid + '/balance').set(newBal);
+                    Swal.fire('Success', 'ব্যালেন্স আপডেট হয়েছে!', 'success');
+                }
+            });
+        }
+
+        // --- BAN USER ---
+        function banUser(uid) {
+            Swal.fire({
+                title: 'আপনি কি নিশ্চিত?',
+                text: "ইউজারকে ব্যান করলে তার সব ডাটা মুছে যাবে!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'হ্যাঁ, ব্যান করুন'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    db.ref('users/' + uid).remove(); 
+                    Swal.fire('Banned!', 'ইউজার রিমুভ করা হয়েছে।', 'success');
+                }
+            });
+        }
+
+        // --- MANAGE ADS ---
+        function deleteTask(taskId) {
+            db.ref('tasks/' + taskId).remove();
+            Swal.fire('Deleted', 'অ্যাড ডিলিট করা হয়েছে।', 'success');
+        }
+
+        // --- POST ADMIN AD (UPDATED WITH CATEGORY) ---
+        function postAdminAd() {
+            const url = document.getElementById('aUrl').value;
+            const time = document.getElementById('aTime').value;
+            const target = document.getElementById('aTarget').value;
+            const type = document.getElementById('aType').value; // Get Category
+
+            if(!url || !time || !target) {
+                Swal.fire('Error', 'সব তথ্য পূরণ করুন', 'warning');
+                return;
+            }
+
+            db.ref('tasks').push({
+                owner: 'ADMIN', 
+                url: url,
+                duration: parseInt(time),
+                remaining: parseInt(target),
+                type: type // Save the selected category
+            });
+            Swal.fire('Success', 'এডমিন অ্যাড পাবলিশ হয়েছে!', 'success');
+            
+            // Clear inputs
+            document.getElementById('aUrl').value = '';
+            document.getElementById('aTarget').value = '';
+        }
+
+    </script>
+</body>
+</html>
